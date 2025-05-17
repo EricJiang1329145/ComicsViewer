@@ -209,10 +209,13 @@ struct FileDocumentPicker: UIViewControllerRepresentable {
         func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
             parent.selectedImages.removeAll()
             
+            // 新增：按文件名升序排序URL
+            let sortedUrls = urls.sorted { $0.lastPathComponent < $1.lastPathComponent }
+            
             let dispatchGroup = DispatchGroup()
             let queue = DispatchQueue(label: "file.loading", qos: .userInitiated)
             
-            for url in urls {
+            for url in sortedUrls {  // 修改：使用排序后的URL数组
                 dispatchGroup.enter()
                 queue.async {
                     if let data = try? Data(contentsOf: url),
