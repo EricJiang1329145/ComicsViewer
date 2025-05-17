@@ -5,7 +5,7 @@ import UIKit
 @Observable
 class DataModel {
     var comicPages: [URL] = []
-    private var imageCache = NSCache<NSURL, UIImage>()
+    let imageCache = NSCache<NSURL, UIImage>()
     
     func addPages(_ urls: [URL]) {
         comicPages.append(contentsOf: urls)
