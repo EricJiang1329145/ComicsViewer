@@ -1,6 +1,7 @@
 import SwiftUI
 import PhotosUI
 import UIKit
+import SwiftData // 新增SwiftData引入
 
 @main
 struct ComicApp: App {
@@ -8,18 +9,119 @@ struct ComicApp: App {
         WindowGroup {
             ContentView()
         }
+        .modelContainer(for: ComicProject.self) // 初始化模型容器
     }
 }
 
-struct ComicProject: Identifiable {
-    let id = UUID()
-    var images: [UIImage]
+@Model // 添加SwiftData模型宏
+class ComicProject: Identifiable {
+    var id = UUID()
+    var filePaths: [String] // 改为存储文件路径
     var title: String
     var createDate = Date()
+    
+    // 计算属性用于访问图片
+    var images: [UIImage] {
+        filePaths.compactMap { path in
+            UIImage(contentsOfFile: FileManager.default.documentsDirectory.appendingPathComponent(path).path)
+        }
+    }
+    
+    init(images: [UIImage], title: String) {
+        self.title = title
+        self.filePaths = images.enumerated().map { index, image in
+            let filename = "\(UUID().uuidString)_\(index).jpg"
+            image.saveToDocuments(filename: filename)
+            return filename
+        }
+    }
+    
+    // 删除关联文件的方法
+    func deleteFiles() {
+        filePaths.forEach { path in
+            let fullPath = FileManager.default.documentsDirectory.appendingPathComponent(path)
+            try? FileManager.default.removeItem(at: fullPath)
+        }
+    }
+}
+
+extension FileManager {
+    var documentsDirectory: URL {
+        urls(for: .documentDirectory, in: .userDomainMask)[0]
+    }
+}
+
+extension UIImage {
+    func saveToDocuments(filename: String) {
+        if let data = jpegData(compressionQuality: 0.8) {
+            let url = FileManager.default.documentsDirectory.appendingPathComponent(filename)
+            try? data.write(to: url)
+        }
+    }
+}
+
+struct ComicDetailView: View {
+    @Bindable var comic: ComicProject // 改为使用Bindable
+    @State private var isEditing = false
+    @State private var tempTitle: String
+    
+    init(comic: ComicProject) {
+        self.comic = comic
+        self.tempTitle = comic.title
+    }
+    
+    var body: some View {
+        ScrollView {
+            LazyVStack(spacing: 0) {
+                ForEach(comic.images, id: \.self) { image in
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 2)
+                }
+            }
+        }
+        .navigationTitle(isEditing ? "" : comic.title)  // 编辑时隐藏原标题
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                if isEditing {
+                    // 完成编辑按钮
+                    Button("完成") {
+                        comic.title = tempTitle  // 更新原数据标题
+                        isEditing = false
+                    }
+                } else {
+                    // 进入编辑按钮
+                    Button("编辑") {
+                        tempTitle = comic.title  // 同步当前标题到临时变量
+                        isEditing = true
+                    }
+                }
+            }
+        }
+        .overlay {
+            if isEditing {
+                // 编辑输入框覆盖层
+                VStack {
+                    TextField("输入漫画名称", text: $tempTitle)
+                        .textFieldStyle(.roundedBorder)
+                        .padding()
+                        .background(Color.white)
+                        .cornerRadius(8)
+                }
+                .padding()
+                .background(Color(.systemBackground).opacity(0.9))
+                .cornerRadius(12)
+            }
+        }
+    }
 }
 
 struct ContentView: View {
-    @State private var comics: [ComicProject] = []
+    @Environment(\.modelContext) private var modelContext
+    @Query private var comics: [ComicProject]
+    
     @State private var selectedImages: [UIImage] = []
     @State private var showPicker = false
     @State private var showFilePicker = false
@@ -29,20 +131,10 @@ struct ContentView: View {
             List {
                 ForEach(comics) { comic in
                     NavigationLink {
-                        ScrollView {
-                            LazyVStack(spacing: 0) {
-                                ForEach(comic.images, id: \.self) { image in
-                                    Image(uiImage: image)
-                                        .resizable()
-                                        .scaledToFit()
-                                        .frame(maxWidth: .infinity)
-                                        .padding(.vertical, 2)
-                                }
-                            }
-                        }
-                        .navigationTitle(comic.title)
+                        ComicDetailView(comic: comic)
                     } label: {
                         HStack {
+                            // 改为通过文件路径加载图片
                             Image(uiImage: comic.images.first ?? UIImage())
                                 .resizable()
                                 .scaledToFill()
@@ -51,7 +143,7 @@ struct ContentView: View {
                                 .clipped()
                             
                             VStack(alignment: .leading) {
-                                Text(comic.title)
+                                Text(comic.title)  // 会自动同步修改后的标题
                                     .font(.headline)
                                 Text("\(comic.images.count)张 · \(comic.createDate.formatted())")
                                     .font(.caption)
@@ -109,18 +201,21 @@ struct ContentView: View {
             images: selectedImages,
             title: "漫画\(comics.count + 1)"
         )
-        comics.append(newComic)
+        modelContext.insert(newComic)
         selectedImages.removeAll()
     }
     
     private func deleteComic(at offsets: IndexSet) {
-        comics.remove(atOffsets: offsets)
+        for index in offsets {
+            let comic = comics[index]
+            comic.deleteFiles()
+            modelContext.delete(comic)
+        }
     }
     
     private func deleteSelectedComic(_ comic: ComicProject) {
-        if let index = comics.firstIndex(where: { $0.id == comic.id }) {
-            comics.remove(at: index)
-        }
+        comic.deleteFiles()
+        modelContext.delete(comic)
     }
 }
 
@@ -237,4 +332,5 @@ struct FileDocumentPicker: UIViewControllerRepresentable {
 
 #Preview("默认预览") {
     ContentView()
+        .modelContainer(for: ComicProject.self, inMemory: true)
 }
