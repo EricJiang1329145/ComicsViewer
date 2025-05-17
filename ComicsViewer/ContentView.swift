@@ -1,137 +1,237 @@
-//
-//  ContentView.swift
-//  ComicsViewer
-//
-//  Created by Eric Jiang on 2025/5/17.
-//
-
 import SwiftUI
+import PhotosUI
+import UIKit
 
-struct CachedImageView<Content: View, Placeholder: View, ErrorView: View>: View {
-    let url: URL
-    @Environment(DataModel.self) private var dataModel
-    @State private var phase: AsyncImagePhase
-    let placeholder: () -> Placeholder
-    let content: (Image) -> Content
-    let onError: () -> ErrorView
-    
-    init(url: URL,
-         @ViewBuilder content: @escaping (Image) -> Content,
-         @ViewBuilder placeholder: @escaping () -> Placeholder,
-         @ViewBuilder onError: @escaping () -> ErrorView) {
-        self.url = url
-        self.content = content
-        self.placeholder = placeholder
-        self.onError = onError
-        
-        if let image = dataModel.cachedImage(for: url) {
-            _phase = State(initialValue: .success(Image(uiImage: image)))
-        } else {
-            _phase = State(initialValue: .empty)
-        }
-    }
-    
-    var body: some View {
-        Group {
-            switch phase {
-            case .empty:
-                placeholder()
-                    .task { await load() }
-            case .success(let image):
-                content(image)
-            case .failure:
-                onError()
-            @unknown default:
-                EmptyView()
-            }
-        }
-    }
-    
-    private func load() async {
-        do {
-            let (data, _) = try await URLSession.shared.data(from: url)
-            if let image = UIImage(data: data) {
-                dataModel.imageCache.setObject(image, forKey: url as NSURL)
-                phase = .success(Image(uiImage: image))
-            } else {
-                phase = .failure(NSError(domain: "ImageError", code: -1, userInfo: nil))
-            }
-        } catch {
-            phase = .failure(error)
+@main
+struct ComicApp: App {
+    var body: some Scene {
+        WindowGroup {
+            ContentView()
         }
     }
 }
 
+struct ComicProject: Identifiable {
+    let id = UUID()
+    var images: [UIImage]
+    var title: String
+    var createDate = Date()
+}
+
 struct ContentView: View {
-    @Environment(DataModel.self) private var dataModel
-    @State private var isImporting = false
+    @State private var comics: [ComicProject] = []
+    @State private var selectedImages: [UIImage] = []
+    @State private var showPicker = false
+    @State private var showFilePicker = false
     
     var body: some View {
         NavigationStack {
-            Group {
-                if dataModel.comicPages.isEmpty {
-                    Button("导入漫画") {
-                        isImporting = true
-                    }
-                } else {
-                    ScrollView {
-                        LazyVStack(spacing: 0) {
-                            ForEach(dataModel.comicPages, id: \.self) { url in
-                                CachedImageView(url: url) {
-                                    ProgressView()
-                                        .frame(height: 300)
-                                } content: { image in
-                                    image
+            List {
+                ForEach(comics) { comic in
+                    NavigationLink {
+                        ScrollView {
+                            LazyVStack(spacing: 0) {
+                                ForEach(comic.images, id: \.self) { image in
+                                    Image(uiImage: image)
                                         .resizable()
                                         .scaledToFit()
                                         .frame(maxWidth: .infinity)
-                                        .zoomable()
-                                } onError: {
-                                    Image(systemName: "exclamationmark.triangle")
-                                        .foregroundColor(.red)
+                                        .padding(.vertical, 2)
                                 }
-                                .frame(maxWidth: .infinity)
+                            }
+                        }
+                        .navigationTitle(comic.title)
+                    } label: {
+                        HStack {
+                            Image(uiImage: comic.images.first ?? UIImage())
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: 80, height: 120)
+                                .cornerRadius(4)
+                                .clipped()
+                            
+                            VStack(alignment: .leading) {
+                                Text(comic.title)
+                                    .font(.headline)
+                                Text("\(comic.images.count)张 · \(comic.createDate.formatted())")
+                                    .font(.caption)
+                                    .foregroundStyle(.gray)
+                            }
+                        }
+                        .padding(.vertical, 8)
+                        .contextMenu {
+                            Button(role: .destructive) {
+                                deleteSelectedComic(comic)
+                            } label: {
+                                Label("删除", systemImage: "trash")
                             }
                         }
                     }
                 }
+                .onDelete(perform: deleteComic)
             }
-            .navigationTitle("漫画浏览器")
+            .navigationTitle("漫画书架")
             .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    Button(action: { isImporting = true }) {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Menu {
+                        Button {
+                            showFilePicker = true
+                        } label: {
+                            Label("从文件导入", systemImage: "folder")
+                        }
+                        
+                        Button {
+                            showPicker = true
+                        } label: {
+                            Label("从图库导入", systemImage: "photo")
+                        }
+                    } label: {
                         Image(systemName: "plus")
+                            .font(.title2.bold())
                     }
                 }
             }
-            .fileImporter(
-                isPresented: $isImporting,
-                allowedContentTypes: [.image],
-                allowsMultipleSelection: true
-            ) { result in
-                switch result {
-                case .success(let urls):
-                    dataModel.addPages(urls)
-                case .failure(let error):
-                    print(error.localizedDescription)
+            .sheet(isPresented: $showPicker) {
+                ImagePicker(selectedImages: $selectedImages) {
+                    createNewComic()
+                }
+            }
+            .sheet(isPresented: $showFilePicker) {
+                FileDocumentPicker(selectedImages: $selectedImages) {
+                    createNewComic()
                 }
             }
         }
     }
-}
-@main
-struct ComicsViewerApp: App {
-    @State private var dataModel = DataModel()
     
-    var body: some Scene {
-        WindowGroup {
-            ContentView()
-                .environment(dataModel)
+    private func createNewComic() {
+        let newComic = ComicProject(
+            images: selectedImages,
+            title: "漫画\(comics.count + 1)"
+        )
+        comics.append(newComic)
+        selectedImages.removeAll()
+    }
+    
+    private func deleteComic(at offsets: IndexSet) {
+        comics.remove(atOffsets: offsets)
+    }
+    
+    private func deleteSelectedComic(_ comic: ComicProject) {
+        if let index = comics.firstIndex(where: { $0.id == comic.id }) {
+            comics.remove(at: index)
         }
     }
 }
 
-#Preview {
+struct ImagePicker: UIViewControllerRepresentable {
+    @Binding var selectedImages: [UIImage]
+    var onComplete: () -> Void
+    
+    func makeUIViewController(context: Context) -> PHPickerViewController {
+        var config = PHPickerConfiguration()
+        config.selectionLimit = 0
+        config.filter = .images
+        
+        let picker = PHPickerViewController(configuration: config)
+        picker.delegate = context.coordinator
+        return picker
+    }
+    
+    func updateUIViewController(_ uiViewController: PHPickerViewController, context: Context) {}
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+    
+    class Coordinator: PHPickerViewControllerDelegate {
+        let parent: ImagePicker
+        
+        init(_ parent: ImagePicker) {
+            self.parent = parent
+        }
+        
+        func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
+            parent.selectedImages.removeAll()
+            
+            let dispatchGroup = DispatchGroup()
+            let queue = DispatchQueue(label: "image.loading", qos: .userInitiated)
+            
+            for result in results {
+                dispatchGroup.enter()
+                result.itemProvider.loadObject(ofClass: UIImage.self) { [weak self] image, _ in
+                    queue.async {
+                        if let image = image as? UIImage {
+                            DispatchQueue.main.async {
+                                self?.parent.selectedImages.append(image)
+                            }
+                        }
+                        dispatchGroup.leave()
+                    }
+                }
+            }
+            
+            dispatchGroup.notify(queue: .main) {
+                picker.dismiss(animated: true)
+                self.parent.onComplete()
+            }
+        }
+    }
+}
+
+struct FileDocumentPicker: UIViewControllerRepresentable {
+    @Binding var selectedImages: [UIImage]
+    var onComplete: () -> Void
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+    
+    func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
+        let picker = UIDocumentPickerViewController(
+            documentTypes: ["public.image"],
+            in: .import
+        )
+        picker.allowsMultipleSelection = true
+        picker.delegate = context.coordinator
+        return picker
+    }
+    
+    func updateUIViewController(_ uiViewController: UIDocumentPickerViewController, context: Context) {}
+    
+    class Coordinator: NSObject, UIDocumentPickerDelegate {
+        let parent: FileDocumentPicker
+        
+        init(_ parent: FileDocumentPicker) {
+            self.parent = parent
+        }
+        
+        func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+            parent.selectedImages.removeAll()
+            
+            let dispatchGroup = DispatchGroup()
+            let queue = DispatchQueue(label: "file.loading", qos: .userInitiated)
+            
+            for url in urls {
+                dispatchGroup.enter()
+                queue.async {
+                    if let data = try? Data(contentsOf: url),
+                       let image = UIImage(data: data) {
+                        DispatchQueue.main.async {
+                            self.parent.selectedImages.append(image)
+                        }
+                    }
+                    dispatchGroup.leave()
+                }
+            }
+            
+            dispatchGroup.notify(queue: .main) {
+                self.parent.onComplete()
+            }
+        }
+    }
+}
+
+#Preview("默认预览") {
     ContentView()
-        .environment(DataModel())
 }
