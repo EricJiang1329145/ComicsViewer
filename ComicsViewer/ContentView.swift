@@ -130,55 +130,70 @@ struct ContentView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 300), spacing: 16)], spacing: 16) {
-                    ForEach(comics) { comic in
-                        NavigationLink {
-                            ComicDetailView(comic: comic)
-                        } label: {
-                            HStack(alignment: .top, spacing: 12) {
-                                Image(uiImage: comic.images.first ?? UIImage())
-                                    .resizable()
-                                    .scaledToFill()
-                                    .frame(width: 80, height: 120)
-                                    .cornerRadius(6)
-                                    .clipped()
-                                
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(comic.title)
-                                        .font(.headline)
-                                        .lineLimit(1)
-                                    Text("包含\(comic.images.count)张图片")
-                                        .font(.subheadline)
-                                        .foregroundStyle(.secondary)
-                                    Text(comic.createDate.formatted(date: .abbreviated, time: .omitted))
-                                        .font(.caption)
-                                        .foregroundStyle(.tertiary)
-                                }
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                            }
-                            .padding(12)
-                            .background(Color(.systemBackground))
-                            .cornerRadius(10)
-                            .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)
-                            .contextMenu {
-                                Button(role: .destructive) {
-                                    deleteSelectedComic(comic)
+                Group {
+                    if comics.isEmpty {
+                        VStack(spacing: 12) {
+                            Image(systemName: "books.vertical.fill")
+                                .font(.system(size: 48))
+                                .foregroundColor(.gray)
+                            Text("还没有收藏的漫画")
+                                .font(.title3)
+                                .foregroundColor(.secondary)
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .padding(.top, 100)
+                    } else {
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 300), spacing: 16)], spacing: 16) {
+                            ForEach(comics) { comic in
+                                NavigationLink {
+                                    ComicDetailView(comic: comic)
                                 } label: {
-                                    Label("删除", systemImage: "trash")
+                                    HStack(alignment: .top, spacing: 12) {
+                                        Image(uiImage: comic.images.first ?? UIImage())
+                                            .resizable()
+                                            .scaledToFill()
+                                            .frame(width: 80, height: 120)
+                                            .cornerRadius(6)
+                                            .clipped()
+                                        
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text(comic.title)
+                                                .font(.headline)
+                                                .lineLimit(1)
+                                            Text("包含\(comic.images.count)张图片")
+                                                .font(.subheadline)
+                                                .foregroundStyle(.secondary)
+                                            Text(comic.createDate.formatted(date: .abbreviated, time: .omitted))
+                                                .font(.caption)
+                                                .foregroundStyle(.tertiary)
+                                        }
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                    }
+                                    .padding(12)
+                                    .background(Color(.systemBackground))
+                                    .cornerRadius(10)
+                                    .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)
+                                    .contextMenu {
+                                        Button(role: .destructive) {
+                                            deleteSelectedComic(comic)
+                                        } label: {
+                                            Label("删除", systemImage: "trash")
+                                        }
+                                    }
+                                }
+                                .buttonStyle(.plain)
+                                .swipeActions(edge: .trailing) {
+                                    Button(role: .destructive) {
+                                        deleteSelectedComic(comic)
+                                    } label: {
+                                        Label("删除", systemImage: "trash")
+                                    }
                                 }
                             }
                         }
-                        .buttonStyle(.plain)
-                        .swipeActions(edge: .trailing) {
-                            Button(role: .destructive) {
-                                deleteSelectedComic(comic)
-                            } label: {
-                                Label("删除", systemImage: "trash")
-                            }
-                        }
+                        .padding()
                     }
                 }
-                .padding()
             }
             .navigationTitle("漫画书架")
             .toolbar {
