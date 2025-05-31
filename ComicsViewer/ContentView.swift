@@ -130,29 +130,51 @@ struct ContentView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 180), spacing: 12)], spacing: 12) {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 300), spacing: 16)], spacing: 16) {
                     ForEach(comics) { comic in
                         NavigationLink {
                             ComicDetailView(comic: comic)
                         } label: {
-                            VStack(alignment: .leading) {
+                            HStack(alignment: .top, spacing: 12) {
                                 Image(uiImage: comic.images.first ?? UIImage())
                                     .resizable()
                                     .scaledToFill()
-                                    .frame(width: 80, height: 100)
-                                    .cornerRadius(4)
+                                    .frame(width: 80, height: 120)
+                                    .cornerRadius(6)
                                     .clipped()
                                 
-                                Text(comic.title)
-                                    .font(.subheadline)
-                                    .lineLimit(1)
-                                Text("\(comic.images.count)张")
-                                    .font(.caption2)
-                                    .foregroundStyle(.gray)
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(comic.title)
+                                        .font(.headline)
+                                        .lineLimit(1)
+                                    Text("包含\(comic.images.count)张图片")
+                                        .font(.subheadline)
+                                        .foregroundStyle(.secondary)
+                                    Text(comic.createDate.formatted(date: .abbreviated, time: .omitted))
+                                        .font(.caption)
+                                        .foregroundStyle(.tertiary)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
                             }
-                            .padding(8)
-                            .background(Color(.systemGray6))
-                            .cornerRadius(8)
+                            .padding(12)
+                            .background(Color(.systemBackground))
+                            .cornerRadius(10)
+                            .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)
+                            .contextMenu {
+                                Button(role: .destructive) {
+                                    deleteSelectedComic(comic)
+                                } label: {
+                                    Label("删除", systemImage: "trash")
+                                }
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .swipeActions(edge: .trailing) {
+                            Button(role: .destructive) {
+                                deleteSelectedComic(comic)
+                            } label: {
+                                Label("删除", systemImage: "trash")
+                            }
                         }
                     }
                 }
