@@ -77,8 +77,9 @@ struct ComicDetailView: View {
                     Image(uiImage: image)
                         .resizable()
                         .scaledToFit()
-                        .frame(maxWidth: .infinity)
+                        .frame(maxWidth: 350) // 调整最大宽度
                         .padding(.vertical, 2)
+                        .frame(maxWidth: .infinity, alignment: .center) // 添加居中对齐
                 }
             }
         }
@@ -138,7 +139,7 @@ struct ContentView: View {
                             Image(uiImage: comic.images.first ?? UIImage())
                                 .resizable()
                                 .scaledToFill()
-                                .frame(width: 80, height: 120)
+                                .frame(width: 60, height: 120) // 缩窄封面图宽度
                                 .cornerRadius(4)
                                 .clipped()
                             
