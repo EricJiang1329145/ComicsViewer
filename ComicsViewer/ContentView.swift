@@ -130,17 +130,17 @@ struct ContentView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 120), spacing: 8)], spacing: 12) {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 180), spacing: 12)], spacing: 12) {
                     ForEach(comics) { comic in
                         NavigationLink {
                             ComicDetailView(comic: comic)
                         } label: {
-                            VStack {
+                            VStack(alignment: .leading) {
                                 Image(uiImage: comic.images.first ?? UIImage())
                                     .resizable()
                                     .scaledToFill()
-                                    .frame(width: 100, height: 100)
-                                    .cornerRadius(6)
+                                    .frame(width: 80, height: 100)
+                                    .cornerRadius(4)
                                     .clipped()
                                 
                                 Text(comic.title)
@@ -151,15 +151,14 @@ struct ContentView: View {
                                     .foregroundStyle(.gray)
                             }
                             .padding(8)
-                            .background(Color(UIColor.systemBackground))
+                            .background(Color(.systemGray6))
                             .cornerRadius(8)
-                            .shadow(color: .black.opacity(0.1), radius: 3)
                         }
                     }
                 }
-                .padding(.horizontal, 12)
+                .padding()
             }
-            .navigationTitle("我的漫画")
+            .navigationTitle("漫画书架")
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Menu {
