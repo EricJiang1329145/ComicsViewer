@@ -43,6 +43,32 @@ class ComicProject: Identifiable {
             try? FileManager.default.removeItem(at: fullPath)
         }
     }
+    
+    // 添加内存缓存
+    private static var thumbnailCache = NSCache<NSString, UIImage>()
+    
+    var thumbnail: UIImage? {
+        if let cached = Self.thumbnailCache.object(forKey: id.uuidString as NSString) {
+            return cached
+        }
+        guard let image = images.first else { return nil }
+        let thumbnail = image.resized(to: CGSize(width: 160, height: 240))
+        Self.thumbnailCache.setObject(thumbnail, forKey: id.uuidString as NSString)
+        return thumbnail
+    }
+    
+    // 优化后的图片加载方法
+    func loadImages(completion: @escaping ([UIImage]) -> Void) {
+        DispatchQueue.global(qos: .userInitiated).async {
+            let images = self.filePaths.compactMap { path in
+                UIImage(contentsOfFile: FileManager.default.documentsDirectory.appendingPathComponent(path).path)?
+                    .resized(to: CGSize(width: 800, height: 1200))
+            }
+            DispatchQueue.main.async {
+                completion(images)
+            }
+        }
+    }
 }
 
 extension FileManager {
@@ -366,4 +392,13 @@ struct FileDocumentPicker: UIViewControllerRepresentable {
 #Preview("默认预览") {
     ContentView()
         .modelContainer(for: ComicProject.self, inMemory: true)
+}
+
+// 添加图片处理扩展
+extension UIImage {
+    func resized(to size: CGSize) -> UIImage {
+        UIGraphicsImageRenderer(size: size).image { _ in
+            self.draw(in: CGRect(origin: .zero, size: size))
+        }
+    }
 }
