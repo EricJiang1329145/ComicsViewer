@@ -52,10 +52,31 @@ extension FileManager {
 }
 
 extension UIImage {
-    func saveToDocuments(filename: String) {
-        if let data = jpegData(compressionQuality: 0.8) {
-            let url = FileManager.default.documentsDirectory.appendingPathComponent(filename)
-            try? data.write(to: url)
+    func normalizedOrientation() -> UIImage {
+        if imageOrientation == .up {
+            return self
+        }
+        UIGraphicsBeginImageContextWithOptions(size, false, scale)
+        draw(in: CGRect(origin: .zero, size: size))
+        let normalizedImage = UIGraphicsGetImageFromCurrentImageContext()
+        UIGraphicsEndImageContext()
+        return normalizedImage ?? self
+    }
+    func saveToDocuments(filename: String) -> Bool {
+        guard let data = jpegData(compressionQuality: 0.8),
+              let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?.appendingPathComponent(filename) else {
+            return false
+        }
+        
+        do {
+            if FileManager.default.fileExists(atPath: url.path) {
+                try FileManager.default.removeItem(at: url)
+            }
+            try data.write(to: url, options: .atomic)
+            return true
+        } catch {
+            print("Save failed: \(error.localizedDescription)")
+            return false
         }
     }
 }
@@ -126,212 +147,133 @@ struct ContentView: View {
     @State private var selectedImages: [UIImage] = []
     @State private var showPicker = false
     @State private var showFilePicker = false
-    
+    @State private var isEditMode = false
+    @State private var selectedComics = Set<UUID>()
+
     var body: some View {
         NavigationStack {
-            List {
-                ForEach(comics) { comic in
-                    NavigationLink {
-                        ComicDetailView(comic: comic)
-                    } label: {
-                        HStack {
-                            // 改为通过文件路径加载图片
-                            Image(uiImage: comic.images.first ?? UIImage())
-                                .resizable()
-                                .scaledToFill()
-                                .frame(width: 60, height: 120) // 缩窄封面图宽度
-                                .cornerRadius(4)
-                                .clipped()
-                            
-                            VStack(alignment: .leading) {
-                                Text(comic.title)  // 会自动同步修改后的标题
-                                    .font(.headline)
-                                Text("\(comic.images.count)张 · \(comic.createDate.formatted())")
-                                    .font(.caption)
-                                    .foregroundStyle(.gray)
+            ScrollView {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 300), spacing: 16)], spacing: 16) {
+                    ForEach(comics) { comic in
+                        ComicGridItem(comic: comic, isEditMode: $isEditMode, isSelected: .constant(selectedComics.contains(comic.id)))
+                            .onTapGesture {
+                                if isEditMode {
+                                    if selectedComics.contains(comic.id) {
+                                        selectedComics.remove(comic.id)
+                                    } else {
+                                        selectedComics.insert(comic.id)
+                                    }
+                                }
                             }
-                        }
-                        .padding(.vertical, 8)
-                        .contextMenu {
-                            Button(role: .destructive) {
-                                deleteSelectedComic(comic)
-                            } label: {
-                                Label("删除", systemImage: "trash")
-                            }
-                        }
                     }
                 }
-                .onDelete(perform: deleteComic)
+                .padding(16)
             }
-            .navigationTitle("漫画书架")
+            .navigationTitle("我的漫画库")
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Menu {
-                        Button {
-                            showFilePicker = true
-                        } label: {
-                            Label("从文件导入", systemImage: "folder")
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button(isEditMode ? "取消" : "编辑") {
+                        isEditMode.toggle()
+                        if !isEditMode {
+                            selectedComics.removeAll()
                         }
-                        
-                        Button {
-                            showPicker = true
-                        } label: {
-                            Label("从图库导入", systemImage: "photo")
-                        }
-                    } label: {
-                        Image(systemName: "plus")
-                            .font(.title2.bold())
                     }
                 }
-            }
-            .sheet(isPresented: $showPicker) {
-                ImagePicker(selectedImages: $selectedImages) {
-                    createNewComic()
-                }
-            }
-            .sheet(isPresented: $showFilePicker) {
-                FileDocumentPicker(selectedImages: $selectedImages) {
-                    createNewComic()
+                
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    if isEditMode && !selectedComics.isEmpty {
+                        Button(role: .destructive) {
+                            deleteSelectedComics()
+                        } label: {
+                            Text("删除(\(selectedComics.count))")
+                        }
+                    }
                 }
             }
         }
     }
-    
-    private func createNewComic() {
-        let newComic = ComicProject(
-            images: selectedImages,
-            title: "漫画\(comics.count + 1)"
-        )
-        modelContext.insert(newComic)
-        selectedImages.removeAll()
-    }
-    
-    private func deleteComic(at offsets: IndexSet) {
-        for index in offsets {
-            let comic = comics[index]
+
+    private func deleteSelectedComics() {
+        comics.filter { selectedComics.contains($0.id) }.forEach { comic in
             comic.deleteFiles()
             modelContext.delete(comic)
         }
-    }
-    
-    private func deleteSelectedComic(_ comic: ComicProject) {
-        comic.deleteFiles()
-        modelContext.delete(comic)
+        selectedComics.removeAll()
+        isEditMode = false
     }
 }
 
-struct ImagePicker: UIViewControllerRepresentable {
-    @Binding var selectedImages: [UIImage]
-    var onComplete: () -> Void
-    
-    func makeUIViewController(context: Context) -> PHPickerViewController {
-        var config = PHPickerConfiguration()
-        config.selectionLimit = 0
-        config.filter = .images
-        
-        let picker = PHPickerViewController(configuration: config)
-        picker.delegate = context.coordinator
-        return picker
-    }
-    
-    func updateUIViewController(_ uiViewController: PHPickerViewController, context: Context) {}
-    
-    func makeCoordinator() -> Coordinator {
-        Coordinator(self)
-    }
-    
-    class Coordinator: PHPickerViewControllerDelegate {
-        let parent: ImagePicker
-        
-        init(_ parent: ImagePicker) {
-            self.parent = parent
-        }
-        
-        func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
-            parent.selectedImages.removeAll()
-            
-            let dispatchGroup = DispatchGroup()
-            let queue = DispatchQueue(label: "image.loading", qos: .userInitiated)
-            
-            for result in results {
-                dispatchGroup.enter()
-                result.itemProvider.loadObject(ofClass: UIImage.self) { [weak self] image, _ in
-                    queue.async {
-                        if let image = image as? UIImage {
-                            DispatchQueue.main.async {
-                                self?.parent.selectedImages.append(image)
-                            }
-                        }
-                        dispatchGroup.leave()
+struct ComicGridItem: View {
+    let comic: ComicProject
+    @Binding var isEditMode: Bool
+    @Binding var isSelected: Bool
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            NavigationLink {
+                ComicDetailView(comic: comic)
+            } label: {
+                HStack(spacing: 12) {
+                    Image(uiImage: comic.images.first ?? UIImage())
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 100, height: 150)
+                        .cornerRadius(12)
+                        .shadow(radius: 4)
+                
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(comic.title)
+                            .font(.headline)
+                            .foregroundColor(.primary)
+                        
+                        Text("包含\(comic.images.count)张图片")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                        
+                        Text(comic.createDate.formatted(date: .abbreviated, time: .omitted))
+                            .font(.caption)
+                            .foregroundColor(.gray)
                     }
+                    .padding(.vertical, 8)
                 }
+                .padding(12)
+                .background(Color(.systemBackground))
+                .cornerRadius(16)
             }
+            .disabled(isEditMode)
             
-            dispatchGroup.notify(queue: .main) {
-                picker.dismiss(animated: true)
-                self.parent.onComplete()
+            if isEditMode {
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 24))
+                    .padding(8)
+                    .foregroundColor(isSelected ? .blue : .gray)
             }
         }
     }
 }
 
-struct FileDocumentPicker: UIViewControllerRepresentable {
-    @Binding var selectedImages: [UIImage]
-    var onComplete: () -> Void
-    
-    func makeCoordinator() -> Coordinator {
-        Coordinator(self)
-    }
-    
-    func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
-        let picker = UIDocumentPickerViewController(
-            documentTypes: ["public.image"],
-            in: .import
-        )
-        picker.allowsMultipleSelection = true
-        picker.delegate = context.coordinator
-        return picker
-    }
-    
-    func updateUIViewController(_ uiViewController: UIDocumentPickerViewController, context: Context) {}
-    
-    class Coordinator: NSObject, UIDocumentPickerDelegate {
-        let parent: FileDocumentPicker
-        
-        init(_ parent: FileDocumentPicker) {
-            self.parent = parent
+struct EmptyStateView: View {
+    var body: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "photo.on.rectangle")
+                .font(.system(size: 48))
+                .foregroundColor(.gray)
+            Text("点击+号添加漫画")
+                .font(.title3)
+                .foregroundColor(.gray)
         }
-        
-        func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
-            parent.selectedImages.removeAll()
-            
-            // 新增：按文件名升序排序URL
-            let sortedUrls = urls.sorted { $0.lastPathComponent < $1.lastPathComponent }
-            
-            let dispatchGroup = DispatchGroup()
-            let queue = DispatchQueue(label: "file.loading", qos: .userInitiated)
-            
-            for url in sortedUrls {  // 修改：使用排序后的URL数组
-                dispatchGroup.enter()
-                queue.async {
-                    if let data = try? Data(contentsOf: url),
-                       let image = UIImage(data: data) {
-                        DispatchQueue.main.async {
-                            self.parent.selectedImages.append(image)
-                        }
-                    }
-                    dispatchGroup.leave()
-                }
-            }
-            
-            dispatchGroup.notify(queue: .main) {
-                self.parent.onComplete()
-            }
-        }
+        .padding(.top, 100)
     }
 }
 
-#Preview("默认预览") {
+// 删除整个FolderComicPicker结构体定义
+
+#Preview("带数据预览") {
+    ContentView()
+        .modelContainer(for: ComicProject.self, inMemory: true)
+}
+
+#Preview("空数据预览") {
     ContentView()
         .modelContainer(for: ComicProject.self, inMemory: true)
 }
