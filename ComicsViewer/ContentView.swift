@@ -171,78 +171,43 @@ struct ContentView: View {
     @State private var selectedImages: [UIImage] = []
     @State private var showPicker = false
     @State private var showFilePicker = false
+    @State private var selectedComic: ComicProject? // 新增选中状态
     
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                Group {
-                    if comics.isEmpty {
-                        VStack(spacing: 12) {
-                            Image(systemName: "books.vertical.fill")
-                                .font(.system(size: 48))
-                                .foregroundColor(.gray)
-                            Text("还没有收藏的漫画")
-                                .font(.title3)
-                                .foregroundColor(.secondary)
+        NavigationSplitView {
+            List(comics, selection: $selectedComic) { comic in
+                NavigationLink(value: comic) {
+                    HStack(alignment: .top, spacing: 12) {
+                        Image(uiImage: comic.thumbnail ?? UIImage())
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .frame(width: 60, height: 90)
+                            .cornerRadius(4)
+                            .clipped()
+                        
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(comic.title)
+                                .font(.subheadline)
+                                .lineLimit(2)
+                            Text(comic.createDate.formatted(date: .abbreviated, time: .omitted))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                         }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .padding(.top, 100)
-                    } else {
-                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 300), spacing: 16)], spacing: 16) {
-                            ForEach(comics) { comic in
-                                NavigationLink {
-                                    ComicDetailView(comic: comic)
-                                } label: {
-                                    HStack(alignment: .top, spacing: 12) {
-                                        Image(uiImage: comic.images.first ?? UIImage())
-                                            .resizable()
-                                            .scaledToFill()
-                                            .frame(width: 80, height: 120)
-                                            .cornerRadius(6)
-                                            .clipped()
-                                        
-                                        VStack(alignment: .leading, spacing: 4) {
-                                            Text(comic.title)
-                                                .font(.headline)
-                                                .lineLimit(1)
-                                            Text("包含\(comic.images.count)张图片")
-                                                .font(.subheadline)
-                                                .foregroundStyle(.secondary)
-                                            Text(comic.createDate.formatted(date: .abbreviated, time: .omitted))
-                                                .font(.caption)
-                                                .foregroundStyle(.tertiary)
-                                        }
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                    }
-                                    .padding(12)
-                                    .background(Color(.systemBackground))
-                                    .cornerRadius(10)
-                                    .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)
-                                    .contextMenu {
-                                        Button(role: .destructive) {
-                                            deleteSelectedComic(comic)
-                                        } label: {
-                                            Label("删除", systemImage: "trash")
-                                        }
-                                    }
-                                }
-                                .buttonStyle(.plain)
-                                .swipeActions(edge: .trailing) {
-                                    Button(role: .destructive) {
-                                        deleteSelectedComic(comic)
-                                    } label: {
-                                        Label("删除", systemImage: "trash")
-                                    }
-                                }
-                            }
-                        }
-                        .padding()
+                    }
+                    .padding(.vertical, 8)
+                }
+                .swipeActions(edge: .trailing) {
+                    Button(role: .destructive) {
+                        deleteSelectedComic(comic)
+                    } label: {
+                        Label("删除", systemImage: "trash")
                     }
                 }
             }
-            .navigationTitle("漫画书架")
+            .listStyle(.sidebar)
+            .navigationTitle("漫画库")
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: .primaryAction) {
                     Menu {
                         Button {
                             showFilePicker = true
@@ -267,17 +232,36 @@ struct ContentView: View {
                     }
                 }
             }
-            .sheet(isPresented: $showPicker) {
-                ImagePicker(selectedImages: $selectedImages) {
-                    createNewComic()
-                }
-            }
-            .sheet(isPresented: $showFilePicker) {
-                FileDocumentPicker(selectedImages: $selectedImages) {
-                    createNewComic()
-                }
+        } detail: {
+            if let selectedComic {
+                ComicDetailView(comic: selectedComic)
+            } else {
+                Text("请选择漫画")
+                    .foregroundStyle(.secondary)
             }
         }
+        .sheet(isPresented: $showPicker) {
+            ImagePicker(selectedImages: $selectedImages) {
+                createNewComic()
+            }
+        }
+        .sheet(isPresented: $showFilePicker) {
+            FileDocumentPicker(selectedImages: $selectedImages) {
+                createNewComic()
+            }
+        }
+    }
+    
+    // 新增分页加载方法
+    private func loadMoreContentIfNeeded(currentItem comic: ComicProject) {
+        guard let index = comics.firstIndex(where: { $0.id == comic.id }),
+              index == comics.count - 2 else { return }
+        
+        // 模拟分页加载，实际应替换为真实数据加载逻辑
+        let newComics = (0..<5).map { i in
+            ComicProject(images: [], title: "新漫画 \(comics.count + i)")
+        }
+        newComics.forEach(modelContext.insert)
     }
     
     private func createNewComic() {
@@ -372,8 +356,8 @@ struct FileDocumentPicker: UIViewControllerRepresentable {
     
     func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
         let picker = UIDocumentPickerViewController(
-            documentTypes: ["public.image"],
-            in: .import
+            forOpeningContentTypes: [.image], // 替换弃用方法
+            asCopy: true
         )
         picker.allowsMultipleSelection = true
         picker.delegate = context.coordinator
