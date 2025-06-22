@@ -45,7 +45,12 @@ class ComicProject: Identifiable {
     }
     
     // 添加内存缓存
-    private static var thumbnailCache = NSCache<NSString, UIImage>()
+    private static let thumbnailCache: NSCache<NSString, UIImage> = {
+        let cache = NSCache<NSString, UIImage>()
+        cache.countLimit = 50 // 限制缓存数量
+        cache.totalCostLimit = 1024 * 1024 * 100 // 100MB内存限制
+        return cache
+    }()
     private static var mainImageCache = NSCache<NSString, NSArray>() // 主图内存缓存
 
     // 清除所有缓存
