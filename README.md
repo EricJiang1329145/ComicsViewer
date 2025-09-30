@@ -30,6 +30,24 @@
 - **PhotosUI** - 系统相册集成
 - **FileProvider** - 文件系统交互
 
+## 项目结构
+
+```
+ComicsViewer/
+├── Models/                 
+│   └── ComicProject.swift  # 漫画项目模型
+├── Views/                  
+│   └── ComicDetailView.swift # 漫画详情视图
+├── Components/             
+│   ├── ImagePicker.swift   # 图片选择器
+│   └── FileDocumentPicker.swift # 文件选择器
+├── Extensions/             
+│   ├── FileManager+Extensions.swift # 文件管理扩展
+│   └── UIImage+Extensions.swift # 图片处理扩展
+├── ContentView.swift       # 主内容视图
+└── ComicApp.swift          # 应用入口
+```
+
 ## 快速开始
 
 1. 克隆仓库
