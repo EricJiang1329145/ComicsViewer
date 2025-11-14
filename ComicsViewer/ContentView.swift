@@ -11,6 +11,7 @@ struct ContentView: View {
     @State private var showPicker = false
     @State private var showFilePicker = false
     @State private var selectedComic: ComicProject?
+    @State private var showSettings = false
     
     var body: some View {
         NavigationSplitView {
@@ -46,6 +47,26 @@ struct ContentView: View {
             .listStyle(.sidebar)
             .navigationTitle("漫画库")
             .toolbar {
+                // 设置按钮
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(action: { showSettings = true }) {
+                        Image(systemName: "gear")
+                            .font(.title2)
+                    }
+                }
+                
+                // 立即锁定按钮
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(action: {
+                        // 调用立即锁定方法
+                        AppState.shared.lockImmediately()
+                    }) {
+                        Image(systemName: "lock")
+                            .font(.title2)
+                    }
+                }
+                
+                // 主操作按钮
                 ToolbarItem(placement: .primaryAction) {
                     Menu {
                         Button {
@@ -70,6 +91,11 @@ struct ContentView: View {
                             .font(.title2.bold())
                     }
                 }
+            }
+            
+            // 设置页面
+            .sheet(isPresented: $showSettings) {
+                PasswordChangeView()
             }
         } detail: {
             if let selectedComic {
