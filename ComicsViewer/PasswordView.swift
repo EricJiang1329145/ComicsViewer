@@ -145,25 +145,77 @@ struct PasswordView: View {
             Group {
                 if showSuccessAnimation {
                     ZStack {
-                        Color.black.opacity(0.4)
+                        // 背景模糊效果
+                        Color.black.opacity(0.6)
                             .ignoresSafeArea()
+                            .blur(radius: 5)
                         
-                        VStack {
-                            Image(systemName: "checkmark.circle.fill")
-                                .font(.system(size: 80))
-                                .foregroundColor(.green)
-                                .scaleEffect(showSuccessAnimation ? 1.2 : 0.1)
-                                .animation(.spring(response: 0.5, dampingFraction: 0.6), value: showSuccessAnimation)
+                        // 成功动画容器
+                        VStack(spacing: 30) {
+                            // 圆形背景
+                            ZStack {
+                                // 外圈动画
+                                Circle()
+                                    .fill(Color.green.opacity(0.2))
+                                    .frame(width: 150, height: 150)
+                                    .scaleEffect(showSuccessAnimation ? 1.5 : 0.1)
+                                    .animation(.easeOut(duration: 0.8).delay(0.1), value: showSuccessAnimation)
+                                
+                                // 中圈动画
+                                Circle()
+                                    .fill(Color.green.opacity(0.3))
+                                    .frame(width: 120, height: 120)
+                                    .scaleEffect(showSuccessAnimation ? 1.3 : 0.1)
+                                    .animation(.easeOut(duration: 0.7).delay(0.2), value: showSuccessAnimation)
+                                
+                                // 内圈
+                                Circle()
+                                    .fill(Color.green.opacity(0.4))
+                                    .frame(width: 90, height: 90)
+                                    .scaleEffect(showSuccessAnimation ? 1.1 : 0.1)
+                                    .animation(.easeOut(duration: 0.6).delay(0.3), value: showSuccessAnimation)
+                                
+                                // 勾选图标
+                                Image(systemName: "checkmark.circle.fill")
+                                    .font(.system(size: 70))
+                                    .foregroundColor(.white)
+                                    .scaleEffect(showSuccessAnimation ? 1.0 : 0.1)
+                                    .rotationEffect(.degrees(showSuccessAnimation ? 0 : 180))
+                                    .animation(.spring(response: 0.5, dampingFraction: 0.6).delay(0.4), value: showSuccessAnimation)
+                            }
                             
-                            Text("验证成功")
-                                .font(.title)
-                                .fontWeight(.bold)
-                                .foregroundColor(.white)
-                                .opacity(showSuccessAnimation ? 1 : 0)
-                                .animation(.easeInOut(duration: 0.5).delay(0.2), value: showSuccessAnimation)
+                            // 成功文本
+                            VStack(spacing: 10) {
+                                Text("验证成功")
+                                    .font(.title)
+                                    .fontWeight(.bold)
+                                    .foregroundColor(.white)
+                                    .opacity(showSuccessAnimation ? 1 : 0)
+                                    .scaleEffect(showSuccessAnimation ? 1.0 : 0.8)
+                                    .animation(.easeInOut(duration: 0.5).delay(0.5), value: showSuccessAnimation)
+                                
+                                Text("正在进入应用...")
+                                    .font(.subheadline)
+                                    .foregroundColor(.white.opacity(0.8))
+                                    .opacity(showSuccessAnimation ? 1 : 0)
+                                    .animation(.easeInOut(duration: 0.5).delay(0.7), value: showSuccessAnimation)
+                            }
                         }
+                        .padding(30)
+                        .background(
+                            RoundedRectangle(cornerRadius: 20)
+                                .fill(Color.white.opacity(0.1))
+                                .shadow(color: .black.opacity(0.3), radius: 10, x: 0, y: 5)
+                                .blur(radius: 1)
+                        )
+                        .scaleEffect(showSuccessAnimation ? 1.0 : 0.8)
+                        .opacity(showSuccessAnimation ? 1 : 0)
+                        .animation(.spring(response: 0.6, dampingFraction: 0.8).delay(0.3), value: showSuccessAnimation)
                     }
-                    .transition(.opacity)
+                    .transition(.asymmetric(
+                        insertion: .opacity.combined(with: .scale(scale: 0.8)),
+                        removal: .opacity.combined(with: .scale(scale: 1.2))
+                    ))
                 }
             }
         )
@@ -239,8 +291,8 @@ struct PasswordView: View {
             // 重置焦点状态
             isPasswordFocused = false
             
-            // 延迟后解锁
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            // 延迟后解锁（增加延迟以展示完整动画）
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
                 withAnimation(.easeInOut(duration: 0.5)) {
                     isUnlocked = true
                 }
@@ -280,6 +332,20 @@ struct PasswordChangeView: View {
     @State private var showError: Bool = false
     @State private var errorMessage: String = ""
     @State private var showSuccess: Bool = false
+    @State private var isAnimating: Bool = false
+    
+    // 动画状态
+    @State private var titleOffset: CGFloat = -30
+    @State private var titleOpacity: Double = 0
+    @State private var formOffset: CGFloat = 30
+    @State private var formOpacity: Double = 0
+    @State private var buttonScale: CGFloat = 1.0
+    @State private var currentPasswordScale: CGFloat = 1.0
+    @State private var newPasswordScale: CGFloat = 1.0
+    @State private var confirmPasswordScale: CGFloat = 1.0
+    
+    // 背景圆球动画状态
+    @State private var ballOffsets: [CGSize] = Array(repeating: CGSize.zero, count: 5)
     
     // 默认密码为 081201
     private let defaultPassword = "081201"
@@ -289,60 +355,334 @@ struct PasswordChangeView: View {
         UserDefaults.standard.string(forKey: "comicViewerPassword") ?? defaultPassword
     }
     
+    // 验证按钮是否可用
+    private var isSubmitButtonDisabled: Bool {
+        currentPassword.isEmpty || newPassword.isEmpty || confirmPassword.isEmpty
+    }
+    
     var body: some View {
         NavigationStack {
-            Form {
-                Section(header: Text("修改密码")) {
-                    SecureField("当前密码", text: $currentPassword)
-                        .keyboardType(.numberPad)
-                        .textContentType(.password)
-                    
-                    SecureField("新密码", text: $newPassword)
-                        .keyboardType(.numberPad)
-                        .textContentType(.newPassword)
-                    
-                    SecureField("确认新密码", text: $confirmPassword)
-                        .keyboardType(.numberPad)
-                        .textContentType(.newPassword)
+            ZStack {
+                // 背景渐变
+                LinearGradient(
+                    gradient: Gradient(colors: [
+                        Color(red: 0.1, green: 0.1, blue: 0.2),
+                        Color(red: 0.2, green: 0.1, blue: 0.3)
+                    ]),
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .ignoresSafeArea()
+                
+                // 装饰性圆球背景
+                GeometryReader { geometry in
+                    ForEach(0..<5, id: \.self) { index in
+                        Circle()
+                            .fill(
+                                RadialGradient(
+                                    gradient: Gradient(colors: [
+                                        Color.white.opacity(0.1),
+                                        Color.white.opacity(0.05)
+                                    ]),
+                                    center: .center,
+                                    startRadius: 10,
+                                    endRadius: 100
+                                )
+                            )
+                            .frame(width: CGFloat.random(in: 100...200))
+                            .position(
+                                x: CGFloat.random(in: 0...geometry.size.width),
+                                y: CGFloat.random(in: 0...geometry.size.height)
+                            )
+                            .offset(ballOffsets[index])
+                            .opacity(0.3)
+                            .onAppear {
+                                // 为每个圆球设置随机浮动动画
+                                let duration = Double.random(in: 15...25)
+                                let randomX = CGFloat.random(in: -30...30)
+                                let randomY = CGFloat.random(in: -30...30)
+                                
+                                withAnimation(.easeInOut(duration: duration).repeatForever(autoreverses: true).delay(Double(index) * 0.5)) {
+                                    ballOffsets[index] = CGSize(width: randomX, height: randomY)
+                                }
+                            }
+                    }
                 }
                 
-                Section {
-                    Button(action: changePassword) {
-                        Text("确认修改")
-                            .frame(maxWidth: .infinity)
+                // 主要内容
+                ScrollView {
+                    VStack(spacing: 30) {
+                        // 标题
+                        VStack(spacing: 10) {
+                            Text("密码设置")
+                                .font(.largeTitle)
+                                .fontWeight(.bold)
+                                .foregroundColor(.white)
+                                .offset(y: titleOffset)
+                                .opacity(titleOpacity)
+                            
+                            Text("修改您的应用密码")
+                                .font(.subheadline)
+                                .foregroundColor(.white.opacity(0.7))
+                                .offset(y: titleOffset)
+                                .opacity(titleOpacity)
+                        }
+                        .padding(.top, 20)
+                        
+                        // 输入表单
+                        VStack(spacing: 25) {
+                            // 当前密码
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("当前密码")
+                                    .font(.headline)
+                                    .foregroundColor(.white)
+                                    .opacity(0.9)
+                                
+                                HStack {
+                                    Image(systemName: "lock.fill")
+                                        .foregroundColor(.white.opacity(0.6))
+                                    
+                                    SecureField("请输入当前密码", text: $currentPassword)
+                                        .keyboardType(.numberPad)
+                                        .textContentType(.password)
+                                        .foregroundColor(.white)
+                                        .autocapitalization(.none)
+                                        .scaleEffect(currentPasswordScale)
+                                        .onTapGesture {
+                                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                                currentPasswordScale = 1.05
+                                            }
+                                            
+                                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                                                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                                    currentPasswordScale = 1.0
+                                                }
+                                            }
+                                        }
+                                }
+                                .padding()
+                                .background(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .fill(Color.white.opacity(0.1))
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 12)
+                                                .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                                        )
+                                )
+                                .scaleEffect(currentPasswordScale)
+                            }
+                            
+                            // 新密码
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("新密码")
+                                    .font(.headline)
+                                    .foregroundColor(.white)
+                                    .opacity(0.9)
+                                
+                                HStack {
+                                    Image(systemName: "key.fill")
+                                        .foregroundColor(.white.opacity(0.6))
+                                    
+                                    SecureField("请输入新密码", text: $newPassword)
+                                        .keyboardType(.numberPad)
+                                        .textContentType(.newPassword)
+                                        .foregroundColor(.white)
+                                        .autocapitalization(.none)
+                                        .scaleEffect(newPasswordScale)
+                                        .onTapGesture {
+                                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                                newPasswordScale = 1.05
+                                            }
+                                            
+                                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                                                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                                    newPasswordScale = 1.0
+                                                }
+                                            }
+                                        }
+                                }
+                                .padding()
+                                .background(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .fill(Color.white.opacity(0.1))
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 12)
+                                                .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                                        )
+                                )
+                                .scaleEffect(newPasswordScale)
+                                
+                                Text("密码长度至少4位")
+                                    .font(.caption)
+                                    .foregroundColor(.white.opacity(0.6))
+                            }
+                            
+                            // 确认新密码
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("确认新密码")
+                                    .font(.headline)
+                                    .foregroundColor(.white)
+                                    .opacity(0.9)
+                                
+                                HStack {
+                                    Image(systemName: "lock.shield.fill")
+                                        .foregroundColor(.white.opacity(0.6))
+                                    
+                                    SecureField("请再次输入新密码", text: $confirmPassword)
+                                        .keyboardType(.numberPad)
+                                        .textContentType(.newPassword)
+                                        .foregroundColor(.white)
+                                        .autocapitalization(.none)
+                                        .scaleEffect(confirmPasswordScale)
+                                        .onTapGesture {
+                                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                                confirmPasswordScale = 1.05
+                                            }
+                                            
+                                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                                                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                                    confirmPasswordScale = 1.0
+                                                }
+                                            }
+                                        }
+                                }
+                                .padding()
+                                .background(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .fill(Color.white.opacity(0.1))
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 12)
+                                                .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                                        )
+                                )
+                                .scaleEffect(confirmPasswordScale)
+                            }
+                        }
+                        .padding(.horizontal, 25)
+                        .offset(y: formOffset)
+                        .opacity(formOpacity)
+                        
+                        // 错误提示
+                        if showError {
+                            HStack {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .foregroundColor(.red)
+                                
+                                Text(errorMessage)
+                                    .font(.subheadline)
+                                    .foregroundColor(.red)
+                            }
+                            .padding()
+                            .background(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .fill(Color.red.opacity(0.1))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 10)
+                                            .stroke(Color.red.opacity(0.3), lineWidth: 1)
+                                    )
+                            )
+                            .padding(.horizontal, 25)
+                            .transition(.opacity.combined(with: .move(edge: .top)))
+                        }
+                        
+                        // 成功提示
+                        if showSuccess {
+                            HStack {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundColor(.green)
+                                
+                                Text("密码修改成功！")
+                                    .font(.subheadline)
+                                    .foregroundColor(.green)
+                            }
+                            .padding()
+                            .background(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .fill(Color.green.opacity(0.1))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 10)
+                                            .stroke(Color.green.opacity(0.3), lineWidth: 1)
+                                    )
+                            )
+                            .padding(.horizontal, 25)
+                            .transition(.opacity.combined(with: .move(edge: .top)))
+                        }
+                        
+                        // 提交按钮
+                        Button(action: {
+                            // 添加按钮点击动画
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+                                buttonScale = 0.95
+                            }
+                            
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+                                    buttonScale = 1.0
+                                }
+                            }
+                            
+                            isAnimating = true
+                            changePassword()
+                        }) {
+                            HStack {
+                                if isAnimating {
+                                    ProgressView()
+                                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                        .scaleEffect(0.8)
+                                } else {
+                                    Text("确认修改")
+                                        .font(.headline)
+                                }
+                            }
                             .foregroundColor(.white)
-                    }
-                    .padding()
-                    .background(Color.blue)
-                    .cornerRadius(10)
-                    .frame(maxWidth: .infinity)
-                    .disabled(newPassword.isEmpty || confirmPassword.isEmpty || currentPassword.isEmpty)
-                }
-                
-                // 错误提示
-                if showError {
-                    Section {
-                        Text(errorMessage)
-                            .foregroundColor(.red)
-                    }
-                }
-                
-                // 成功提示
-                if showSuccess {
-                    Section {
-                        Text("密码修改成功！")
-                            .foregroundColor(.green)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(
+                                LinearGradient(
+                                    gradient: Gradient(colors: [
+                                        Color(red: 0.2, green: 0.6, blue: 1.0),
+                                        Color(red: 0.1, green: 0.4, blue: 0.8)
+                                    ]),
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+                            .cornerRadius(12)
+                            .shadow(color: Color.blue.opacity(0.3), radius: 5, x: 0, y: 3)
+                            .scaleEffect(buttonScale)
+                        }
+                        .disabled(isSubmitButtonDisabled || isAnimating)
+                        .opacity(isSubmitButtonDisabled || isAnimating ? 0.6 : 1.0)
+                        .padding(.horizontal, 25)
+                        .padding(.bottom, 30)
                     }
                 }
             }
-            .navigationTitle("密码设置")
+            .navigationBarHidden(true)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("取消") {
-                        dismiss()
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button(action: { dismiss() }) {
+                        Image(systemName: "chevron.left")
+                            .font(.title2)
+                            .foregroundColor(.white)
                     }
                 }
+            }
+        }
+        .onAppear {
+            // 重置动画状态
+            isAnimating = false
+            
+            // 页面加载时的动画
+            withAnimation(.easeOut(duration: 0.8).delay(0.2)) {
+                titleOffset = 0
+                titleOpacity = 1.0
+            }
+            
+            withAnimation(.easeOut(duration: 0.8).delay(0.5)) {
+                formOffset = 0
+                formOpacity = 1.0
             }
         }
     }
@@ -354,6 +694,7 @@ struct PasswordChangeView: View {
             showError = true
             errorMessage = "当前密码错误"
             showSuccess = false
+            isAnimating = false
             return
         }
         
@@ -362,6 +703,7 @@ struct PasswordChangeView: View {
             showError = true
             errorMessage = "新密码长度不能少于4位"
             showSuccess = false
+            isAnimating = false
             return
         }
         
@@ -370,6 +712,7 @@ struct PasswordChangeView: View {
             showError = true
             errorMessage = "两次输入的新密码不一致"
             showSuccess = false
+            isAnimating = false
             return
         }
         
@@ -379,6 +722,7 @@ struct PasswordChangeView: View {
         // 显示成功信息
         showSuccess = true
         showError = false
+        isAnimating = false
         
         // 清空输入框
         currentPassword = ""
@@ -386,7 +730,7 @@ struct PasswordChangeView: View {
         confirmPassword = ""
         
         // 延迟关闭视图
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
             dismiss()
         }
     }
