@@ -6,6 +6,7 @@ import UIKit
 class AppState: ObservableObject {
     static let shared = AppState()
     @Published var isUnlocked: Bool = false
+    @Published var showSettings: Bool = false
     
     /// 立即锁定应用
     func lockImmediately() {
@@ -37,10 +38,18 @@ struct ComicApp: App {
     
     var body: some Scene {
         WindowGroup {
-            if appState.isUnlocked {
-                ContentView()
-            } else {
-                PasswordView(isUnlocked: $appState.isUnlocked)
+            ZStack {
+                if appState.isUnlocked {
+                    ContentView()
+                } else {
+                    PasswordView(isUnlocked: $appState.isUnlocked)
+                }
+                
+                // 全局设置按钮，始终位于最上层
+                if appState.isUnlocked {
+                    GlobalSettingsButton()
+                        .ignoresSafeArea(.all) // 忽略安全区域，确保按钮可以位于右上角
+                }
             }
         }
         .modelContainer(for: ComicProject.self)
