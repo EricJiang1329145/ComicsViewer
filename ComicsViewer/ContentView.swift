@@ -95,7 +95,7 @@ struct ContentView: View {
             
             // 设置页面
             .sheet(isPresented: $showSettings) {
-                PasswordChangeView()
+                SettingsView()
             }
         } detail: {
             if let selectedComic {
