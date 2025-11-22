@@ -284,7 +284,10 @@ struct PasswordView: View {
     
     // 验证密码
     private func verifyPassword() {
+        print("[ComicsViewer] 开始验证密码，输入长度: \(password.count)")
+        
         if password == storedPassword {
+            print("[ComicsViewer] 密码验证成功")
             // 密码正确，显示成功动画
             showSuccessAnimation = true
             
@@ -293,11 +296,13 @@ struct PasswordView: View {
             
             // 延迟后解锁（增加延迟以展示完整动画）
             DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                print("[ComicsViewer] 应用解锁")
                 withAnimation(.easeInOut(duration: 0.5)) {
                     isUnlocked = true
                 }
             }
         } else {
+            print("[ComicsViewer] 密码验证失败，输入密码: '\(password)'，正确密码: '\(storedPassword)'")
             // 密码错误，触发震动动画
             withAnimation(.easeInOut(duration: 0.1).repeatCount(5, autoreverses: true)) {
                 shakeOffset = 10
@@ -689,8 +694,12 @@ struct PasswordChangeView: View {
     
     // 修改密码
     private func changePassword() {
+        print("[ComicsViewer] 开始修改密码流程")
+        print("[ComicsViewer] 当前密码输入: '\(currentPassword)'，存储密码: '\(storedPassword)'")
+        
         // 验证当前密码
         if currentPassword != storedPassword {
+            print("[ComicsViewer] 当前密码验证失败")
             showError = true
             errorMessage = "当前密码错误"
             showSuccess = false
@@ -698,8 +707,12 @@ struct PasswordChangeView: View {
             return
         }
         
+        print("[ComicsViewer] 当前密码验证成功")
+        print("[ComicsViewer] 新密码: '\(newPassword)'，确认密码: '\(confirmPassword)'")
+        
         // 验证新密码
         if newPassword.count < 4 {
+            print("[ComicsViewer] 新密码长度不足: \(newPassword.count)")
             showError = true
             errorMessage = "新密码长度不能少于4位"
             showSuccess = false
@@ -709,6 +722,7 @@ struct PasswordChangeView: View {
         
         // 验证确认密码
         if newPassword != confirmPassword {
+            print("[ComicsViewer] 两次输入的新密码不一致")
             showError = true
             errorMessage = "两次输入的新密码不一致"
             showSuccess = false
@@ -718,11 +732,13 @@ struct PasswordChangeView: View {
         
         // 保存新密码
         UserDefaults.standard.set(newPassword, forKey: "comicViewerPassword")
+        print("[ComicsViewer] 新密码已保存到UserDefaults")
         
         // 显示成功信息
         showSuccess = true
         showError = false
         isAnimating = false
+        print("[ComicsViewer] 密码修改成功")
         
         // 清空输入框
         currentPassword = ""
@@ -731,6 +747,7 @@ struct PasswordChangeView: View {
         
         // 延迟关闭视图
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+            print("[ComicsViewer] 关闭密码修改页面")
             dismiss()
         }
     }

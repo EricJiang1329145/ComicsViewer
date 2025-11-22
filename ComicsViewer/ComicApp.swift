@@ -9,7 +9,9 @@ class AppState: ObservableObject {
     
     /// 立即锁定应用
     func lockImmediately() {
+        print("[ComicsViewer] 用户触发立即锁定操作")
         isUnlocked = false
+        print("[ComicsViewer] 应用已锁定")
     }
 }
 
@@ -25,6 +27,7 @@ struct ComicApp: App {
     class AppDelegate: NSObject, UIApplicationDelegate {
         func applicationDidEnterBackground(_ application: UIApplication) {
             // 应用进入后台时锁定
+            print("[ComicsViewer] 应用进入后台，自动锁定")
             AppState.shared.isUnlocked = false
         }
     }
@@ -44,6 +47,7 @@ struct ComicApp: App {
         .onChange(of: scenePhase) { phase in
             // 当应用进入后台时重新锁定
             if phase == .background {
+                print("[ComicsViewer] 场景变化检测到应用进入后台，触发锁定")
                 appState.isUnlocked = false
             }
         }

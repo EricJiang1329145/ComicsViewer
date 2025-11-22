@@ -130,29 +130,44 @@ struct ContentView: View {
     }
     
     private func createNewComic() {
+        print("[ComicsViewer] 开始创建新漫画，图片数量: \(selectedImages.count)")
+        
         let newComic = ComicProject(
             images: selectedImages,
             title: "漫画\(comics.count + 1)"
         )
+        
         modelContext.insert(newComic)
         selectedImages.removeAll()
+        
+        print("[ComicsViewer] 新漫画已创建，标题: '\(newComic.title)'，ID: \(newComic.id)")
+        print("[ComicsViewer] 当前漫画总数: \(comics.count + 1)")
     }
     
     private func deleteComic(at offsets: IndexSet) {
+        print("[ComicsViewer] 开始批量删除漫画，索引: \(offsets)")
+        
         for index in offsets {
             let comic = comics[index]
+            print("[ComicsViewer] 删除漫画: '\(comic.title)'，ID: \(comic.id)")
             comic.deleteFiles()
             modelContext.delete(comic)
         }
+        
+        print("[ComicsViewer] 批量删除完成，剩余漫画数量: \(comics.count - offsets.count)")
     }
     
     private func deleteSelectedComic(_ comic: ComicProject) {
+        print("[ComicsViewer] 开始删除漫画: '\(comic.title)'，ID: \(comic.id)")
         comic.deleteFiles()
         modelContext.delete(comic)
+        print("[ComicsViewer] 漫画删除完成，剩余漫画数量: \(comics.count - 1)")
     }
 
     private func clearCaches() {
+        print("[ComicsViewer] 开始清理缓存")
         ComicProject.clearCaches()
+        print("[ComicsViewer] 缓存清理完成")
     }
 }
 
